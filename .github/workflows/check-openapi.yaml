@@ -32,4 +32,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api repos/$GITHUB_REPOSITORY/issues/$PR/comments \
-            -f body="## ⚠️ OpenAPI breaking changes (docs.yaml → docs-new.yaml) <br><br>$(cat oasdiff.md)"
+            -f body="## ⚠️ OpenAPI breaking changes (docs.yaml / docs-new.yaml) <br><br>### Make sure you change the specification in both routes.ts file(s) and swagger/docs-new.yaml, so they are consistent<br><br>$(cat oasdiff.md)"
