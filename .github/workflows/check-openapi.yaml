@@ -1,0 +1,35 @@
+name: OpenAPI breaking changes check
+
+permissions:
+  pull-requests: write
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  oasdiff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare OpenAPI Docs
+        id: oasdiff
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/docs" tufin/oasdiff:latest breaking --fail-on WARN -f markdown /docs/old.json /docs/new.json > oasdiff.md
+
+      - name: React to breaking changes
+        if: ${{ steps.oasdiff.outcome == 'failure' }}
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/$GITHUB_REPOSITORY/issues/$PR/comments \
+            -f body="## ⚠️ OpenAPI breaking changes (docs.yaml → docs-new.yaml) <br><br>$(cat oasdiff.md)"
