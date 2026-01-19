@@ -19,17 +19,27 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compare OpenAPI Docs
-        id: oasdiff
-        continue-on-error: true
-        run: |
-          docker run --rm -v "$PWD:/docs" tufin/oasdiff:latest breaking --fail-on WARN -f markdown /docs/old.json /docs/new.json > oasdiff.md
-
-      - name: React to breaking changes
-        if: ${{ steps.oasdiff.outcome == 'failure' }}
+      - name: Run oasdiff & comment on breaking
         env:
           PR: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          # 1. Сгенерировать JSON diff
+          docker run --rm -v "$PWD:/docs" tufin/oasdiff:latest breaking \
+            --format json /docs/old.json /docs/new.json > oasdiff.json
+
+          # 2. Проверить через jq, что корень — пустой массив
+          if jq -e 'type == "array" and length == 0' oasdiff.json; then
+            echo "No breaking changes found."
+            exit 0
+          fi
+
+          echo "Breaking changes detected!"
+
+          # 3. Генерируем markdown diff
+          docker run --rm -v "$PWD:/docs" tufin/oasdiff:latest breaking \
+            --format markdown /docs/old.json /docs/new.json > oasdiff.md
+
+          # 4. Отправляем комментарий в PR
           gh api repos/$GITHUB_REPOSITORY/issues/$PR/comments \
-            -f body="## ⚠️ OpenAPI breaking changes (docs.yaml / docs-new.yaml) <br><br>### Make sure you change the specification in both routes.ts file(s) and swagger/docs-new.yaml, so they are consistent<br><br>$(cat oasdiff.md)"
+            -f body="## ⚠️ OpenAPI breaking changes detected<br><br>$(cat oasdiff.md)"
